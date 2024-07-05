@@ -1,0 +1,111 @@
+precision: 32
+
+simulation-budgets: [512, 1024, 2048, 16384, 65536,]
+validation: 65536
+test: 65536
+
+validation_fraction: 0.25
+
+model_seeds: [0,1,2,3,4,]
+
+evaluation:
+  n_levels: 19
+  n_samples: 1000
+  batch_size: 512
+  grid_resolution: 512
+  mmd_bandwidht:
+    2spirals: 7.910480976104736
+    8gaussians: 16.2009220123291
+    checkerboard: 16.130380630493164
+    circles: 8.806268692016602
+    cos: 6.147412300109863
+    gaussian: 2.7847650051116943
+    line: 4.278753757476807
+    moons: 5.425985813140869
+    pinwheel: 7.084597587585449
+    rings: 6.27013635635376
+    swissroll: 6.168346405029297
+
+
+datasets:
+  - swissroll
+  - circles
+  - rings
+  - moons
+  - 8gaussians
+  - pinwheel
+  - 2spirals
+  - checkerboard
+  - line
+  - cos
+  - gaussian
+
+real-datasets:
+  - mnist
+  - cifar10
+
+cached_dataset:
+  swissroll: True
+  circles: True
+  rings: True
+  moons: True
+  8gaussians: True
+  pinwheel: True
+  2spirals: True
+  checkerboard: True
+  line: True
+  cos: True
+  gaussian: True
+  mnist: True
+  cifar10: True
+
+use_cuda_cached_dataset:
+  swissroll: True
+  circles: True
+  rings: True
+  moons: True
+  8gaussians: True
+  pinwheel: True
+  2spirals: True
+  checkerboard: True
+  line: True
+  cos: True
+  gaussian: True
+  mnist: True
+  cifar10: True
+
+standardization:
+  swissroll: False
+  circles: False
+  rings: False
+  moons: False
+  8gaussians: False
+  pinwheel: False
+  2spirals: False
+  checkerboard: False
+  line: False
+  cos: False
+  gaussian: False
+
+models:
+  - name: gan
+    model: gan
+    parent: gan
+    co-parent: gan
+  - name: wgan
+    model: wgan
+    parent: gan
+    co-parent: gan
+  - name: ksgan
+    model: ksgan
+    parent: gan
+    co-parent: wgan
+
+
+visualization:
+  groups:
+    - name: all
+      models:
+        - gan
+        - wgan
+        - ksgan

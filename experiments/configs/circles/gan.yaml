@@ -1,0 +1,64 @@
+detect_anomaly: false
+wandb_log_freq: 50
+
+model:
+  critic_cfg:
+    build: EBMMLP
+    parameters:
+      hidden_features: [512, 512, 512]
+      activation:
+        type: LeakyReLU
+        parameters:
+          negative_slope: 0.2
+      spectral_norm: True
+  generator_cfg:
+    build: GenerativeMLP
+    parameters:
+      hidden_features: [512, 512, 512]
+      activation:
+        type: ReLU
+      latent_dim: 8
+      noise:
+        distribution:
+          type: Normal
+          parameters:
+            loc: 0.
+            scale: 1.
+
+loss:
+  k: 5
+
+optimizer:
+  critic:
+    type: Adam
+    lr: 0.0001
+    weight_decay: 0
+    betas:
+    - 0.5
+    - 0.9
+    gradient_norm_clip:
+      value: null
+      type: 1
+    gradient_value_clip:
+      value: null
+    lr_scheduler: null
+    maximize: True
+  generator:
+    type: Adam
+    lr: 0.0001
+    weight_decay: 0
+    betas:
+    - 0.5
+    - 0.9
+    gradient_norm_clip:
+      value: null
+      type: 1
+    gradient_value_clip:
+      value: null
+    lr_scheduler: null
+    maximize: False
+
+train:
+  batch_size: 512
+  iterations: 128000
+  vis_freq: 10

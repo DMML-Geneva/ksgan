@@ -1,0 +1,69 @@
+detect_anomaly: false
+wandb_log_freq: 50
+
+model:
+  n_stacked: 3
+  critic_cfg:
+    build: MNISTCritic
+    parameters:
+      hidden_dim: 64
+      activation:
+        type: LeakyReLU
+        parameters:
+          negative_slope: 0.2
+
+
+  generator_cfg:
+    build: MNISTGenerator
+    parameters:
+      latent_dim: 128
+      hidden_dim: 64
+      activation:
+        type: ReLU
+      noise:
+        distribution:
+          type: Normal
+          parameters:
+            loc: 0.
+            scale: 1.
+
+
+loss:
+  k: 1
+  lmbda_gp: -10.
+
+optimizer:
+  critic:
+    type: Adam
+    lr: 0.0001
+    weight_decay: 0
+    betas:
+    - 0.5
+    - 0.9
+    fused: False
+    gradient_norm_clip:
+      value: null
+      type: 1
+    gradient_value_clip:
+      value: null
+    lr_scheduler: null
+    maximize: True
+  generator:
+    type: Adam
+    lr: 0.0001
+    weight_decay: 0
+    betas:
+    - 0.5
+    - 0.9
+    gradient_norm_clip:
+      value: null
+      type: 1
+    gradient_value_clip:
+      value: null
+    lr_scheduler: null
+    maximize: False
+
+train:
+  batch_size: 50
+  iterations: 200000
+  vis_freq: 1

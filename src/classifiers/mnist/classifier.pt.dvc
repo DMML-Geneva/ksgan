@@ -1,0 +1,5 @@
+outs:
+- md5: 87136d9c9c3c8297705fd00badb23ae7
+  size: 4802776
+  hash: md5
+  path: classifier.pt

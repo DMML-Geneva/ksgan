@@ -1,0 +1,17 @@
+[tool.black]
+line-length = 79
+target-version = ['py311']
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.dvc
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | \data
+  | \.dawgz
+)/
+'''

@@ -1,0 +1,61 @@
+detect_anomaly: false
+wandb_log_freq: 50
+
+model:
+  critic_cfg:
+    build: CIFAR10CriticResNet
+    parameters: {}
+
+
+  generator_cfg:
+    build: CIFAR10GeneratorResNet
+    parameters:
+      latent_dim: 128
+      activation:
+        type: ReLU
+      noise:
+        distribution:
+          type: Normal
+          parameters:
+            loc: 0.
+            scale: 1.
+
+
+loss:
+  k: 1
+  flipped: True
+
+optimizer:
+  critic:
+    type: Adam
+    lr: 0.0001
+    weight_decay: 0
+    betas:
+    - 0.0
+    - 0.9
+    gradient_norm_clip:
+      value: null
+      type: 1
+    gradient_value_clip:
+      value: null
+    lr_scheduler: null
+    maximize: True
+  generator:
+    type: Adam
+    lr: 0.0001
+    weight_decay: 0
+    betas:
+    - 0.0
+    - 0.9
+    gradient_norm_clip:
+      value: null
+      type: 1
+    gradient_value_clip:
+      value: null
+    lr_scheduler: null
+    maximize: False
+
+train:
+  batch_size: 64
+  iterations: 199936
+  vis_freq: 1

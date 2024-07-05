@@ -1,0 +1,400 @@
+vars:
+  - seed: 2024
+  - sim_bs: -1
+  - use_cuda: True
+  - experiments/configs/global.yaml:simulation-budgets,datasets,real-datasets,models,model_seeds,visualization
+
+stages:
+  generate:
+    foreach: ${datasets}
+    do:
+      cmd: >-
+        PYTHONPATH="." python -Werror -W ignore::ResourceWarning
+        -W default::FutureWarning -W ignore::DeprecationWarning
+        experiments/scripts/generate.py
+        --simulator ${item}
+        --config experiments/configs/global.yaml
+        --out-path data/raw/${item}
+        --bs ${sim_bs}
+        --seed ${seed}
+      deps:
+        - experiments/scripts/generate.py
+        - src/simulators/${item}.py
+      params:
+        - experiments/configs/global.yaml:
+          - simulation-budgets
+          - validation
+          - test
+      outs:
+        - data/raw/${item}/train.zip
+        - data/raw/${item}/validation.zip
+        - data/raw/${item}/test.zip
+  preprocess-real:
+    foreach: ${real-datasets}
+    do:
+      cmd: >-
+        PYTHONPATH="." python -Werror -W ignore::ResourceWarning
+        -W default::FutureWarning -W ignore::DeprecationWarning
+        experiments/scripts/preprocess-real.py
+        --dataset ${item}
+        --out-path data/preprocessed/${item}
+        --seed ${seed}
+      deps:
+        - experiments/scripts/preprocess-real.py
+        - src/datasets/${item}.py
+      outs:
+        - data/preprocessed/${item}/train.zip
+        - data/preprocessed/${item}/validation.zip
+        - data/preprocessed/${item}/test.zip
+        - data/preprocessed/${item}/mean.pkl
+        - data/preprocessed/${item}/std.pkl
+  preprocess:
+    foreach: ${datasets}
+    do:
+      cmd: >-
+        PYTHONPATH="." python -Werror -W ignore::ResourceWarning
+        -W default::FutureWarning -W ignore::DeprecationWarning
+        experiments/scripts/preprocess.py
+        --simulator ${item}
+        --config experiments/configs/global.yaml
+        --in-path data/raw/${item}
+        --out-path data/preprocessed/${item}
+        --seed ${seed}
+      deps:
+        - experiments/scripts/preprocess.py
+        - data/raw/${item}/train.zip
+        - data/raw/${item}/validation.zip
+        - data/raw/${item}/test.zip
+      params:
+        - experiments/configs/global.yaml:
+          - standardization.${item}
+      outs:
+        - data/preprocessed/${item}/train.zip
+        - data/preprocessed/${item}/validation.zip
+        - data/preprocessed/${item}/test.zip
+        - data/preprocessed/${item}/mean.pkl
+        - data/preprocessed/${item}/std.pkl
+  visualize-data:
+    foreach: ${datasets}
+    do:
+      cmd: >-
+        PYTHONPATH="." python -Werror -W ignore::ResourceWarning
+        -W default::FutureWarning -W ignore::DeprecationWarning
+        experiments/scripts/visualize-data.py
+        --config experiments/configs/global.yaml
+        --simulator ${item}
+        --data-path data/preprocessed/${item}
+        --out-path data/visualization/${item}/data/
+      deps:
+        - experiments/scripts/visualize-data.py
+        - data/preprocessed/${item}/test.zip
+      outs:
+        - data/visualization/${item}/data/
+        - data/preprocessed/${item}/extent.pkl
+  visualize-data-real:
+    foreach: ${real-datasets}
+    do:
+      cmd: >-
+        PYTHONPATH="." python -Werror -W ignore::ResourceWarning
+        -W default::FutureWarning -W ignore::DeprecationWarning
+        experiments/scripts/visualize-real-data.py
+        --config experiments/configs/global.yaml
+        --dataset ${item}
+        --data-path data/preprocessed/${item}
+        --out-path data/visualization/${item}/data/
+      deps:
+        - experiments/scripts/visualize-real-data.py
+        - data/preprocessed/${item}/test.zip
+      outs:
+        - data/visualization/${item}/data/data.png
+  train:
+    matrix:
+      model: ${models}
+      dataset: ${datasets}
+      simulation-budget: ${simulation-budgets}
+      model-seed: ${model_seeds}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/train.py
+      --model ${item.model.model}
+      --simulator ${item.dataset}
+      --simulation-budget ${item.simulation-budget}
+      --config experiments/configs/${item.dataset}/${item.model.name}.yaml
+      --config-global experiments/configs/global.yaml
+      --data-path data/preprocessed/${item.dataset}/
+      --out-path data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}
+      --vis-path data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/vis
+      --cuda ${use_cuda}
+      --model-seed ${item.model-seed}
+      --seed ${seed}
+    deps:
+      - experiments/scripts/train.py
+      - src/simulators/${item.dataset}.py
+      - data/preprocessed/${item.dataset}/train.zip
+      - data/preprocessed/${item.dataset}/validation.zip
+      - src/models/${item.model.model}.py
+      - src/models/${item.model.parent}.py
+      - src/models/${item.model.co-parent}.py
+      - src/training/utils.py
+    params:
+      - experiments/configs/${item.dataset}/${item.model.name}.yaml:
+        - model
+        - loss
+        - optimizer
+        - train.batch_size
+        - train.iterations
+      - experiments/configs/global.yaml:
+        - precision
+        - validation_fraction
+    outs:
+      - data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/wandb_group
+      - data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/loss_history.pkl
+      - data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/model.pt
+      - data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/vis
+  train-real:
+    matrix:
+      model: ${models}
+      dataset: ${real-datasets}
+      model-seed: ${model_seeds}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/train.py
+      --model ${item.model.model}
+      --simulator ${item.dataset}
+      --simulation-budget -1
+      --config experiments/configs/${item.dataset}/${item.model.name}.yaml
+      --config-global experiments/configs/global.yaml
+      --data-path data/preprocessed/${item.dataset}/
+      --out-path data/models/${item.dataset}/${item.model.name}/${item.model-seed}
+      --vis-path data/models/${item.dataset}/${item.model.name}/${item.model-seed}/vis
+      --cuda ${use_cuda}
+      --model-seed ${item.model-seed}
+      --seed ${seed}
+      --is-dataset True
+    deps:
+      - experiments/scripts/train.py
+      - src/datasets/${item.dataset}.py
+      - data/preprocessed/${item.dataset}/train.zip
+      - data/preprocessed/${item.dataset}/validation.zip
+      - src/models/${item.model.model}.py
+      - src/models/${item.model.parent}.py
+      - src/models/${item.model.co-parent}.py
+      - src/training/utils.py
+    params:
+      - experiments/configs/${item.dataset}/${item.model.name}.yaml:
+        - model
+        - loss
+        - optimizer
+        - train.batch_size
+        - train.iterations
+      - experiments/configs/global.yaml:
+        - precision
+        - validation_fraction
+    outs:
+      - data/models/${item.dataset}/${item.model.name}/${item.model-seed}/wandb_group
+      - data/models/${item.dataset}/${item.model.name}/${item.model-seed}/loss_history.pkl
+      - data/models/${item.dataset}/${item.model.name}/${item.model-seed}/model.pt
+      - data/models/${item.dataset}/${item.model.name}/${item.model-seed}/vis
+  evaluate:
+    matrix:
+      model: ${models}
+      dataset: ${datasets}
+      simulation-budget: ${simulation-budgets}
+      model-seed: ${model_seeds}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/evaluate.py
+      --model ${item.model.model}
+      --simulator ${item.dataset}
+      --model-config experiments/configs/${item.dataset}/${item.model.name}.yaml
+      --config experiments/configs/global.yaml
+      --data-path data/preprocessed/${item.dataset}/
+      --model-path data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/
+      --out-path data/evaluation/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/artifacts
+      --metrics-summary-path data/evaluation/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/
+      --cuda ${use_cuda}
+      --seed ${seed}
+    deps:
+      - experiments/scripts/evaluate.py
+      - src/evaluation/utils.py
+      - src/simulators/${item.dataset}.py
+      - data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/model.pt
+      - data/preprocessed/${item.dataset}/test.zip
+      - data/preprocessed/${item.dataset}/extent.pkl
+      - src/models/${item.model.model}.py
+      - src/models/${item.model.parent}.py
+      - src/models/${item.model.co-parent}.py
+    params:
+      - experiments/configs/global.yaml:
+        - evaluation.n_levels
+        - evaluation.n_samples
+        - evaluation.grid_resolution
+        - evaluation.mmd_bandwidht.${item.dataset}
+    outs:
+      - data/evaluation/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/artifacts/
+    metrics:
+      - data/evaluation/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/metrics-summary-rsample.json
+      - data/evaluation/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/metrics-summary-log_prob.json
+      - data/evaluation/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/metrics-summary-critic.json
+  evaluate-real:
+    matrix:
+      model: ${models}
+      dataset: ${real-datasets}
+      model-seed: ${model_seeds}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/evaluate-real.py
+      --model ${item.model.model}
+      --dataset ${item.dataset}
+      --model-config experiments/configs/${item.dataset}/${item.model.name}.yaml
+      --config experiments/configs/global.yaml
+      --data-path data/preprocessed/${item.dataset}/
+      --model-path data/models/${item.dataset}/${item.model.name}/${item.model-seed}/
+      --out-path data/evaluation/${item.dataset}/${item.model.name}/${item.model-seed}/artifacts
+      --metrics-summary-path data/evaluation/${item.dataset}/${item.model.name}/${item.model-seed}/
+      --cuda ${use_cuda}
+      --seed ${seed}
+    deps:
+      - experiments/scripts/evaluate-real.py
+      - src/evaluation/utils.py
+      - src/datasets/${item.dataset}.py
+      - data/models/${item.dataset}/${item.model.name}/${item.model-seed}/model.pt
+      - data/preprocessed/${item.dataset}/test.zip
+      - src/models/${item.model.model}.py
+      - src/models/${item.model.parent}.py
+      - src/models/${item.model.co-parent}.py
+    metrics:
+      - data/evaluation/${item.dataset}/${item.model.name}/${item.model-seed}/metrics-summary-rsample.json
+  visualize-training:
+    matrix:
+      model: ${models}
+      dataset: ${datasets}
+      simulation-budget: ${simulation-budgets}
+      model-seed: ${model_seeds}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/visualize-training.py
+      --history-file data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/loss_history.pkl
+      --out-path data/visualization/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/
+    deps:
+      - src/visualization/utils.py
+      - experiments/scripts/visualize-training.py
+      - data/models/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/loss_history.pkl
+    outs:
+      - data/visualization/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/training.png
+  visualize-training-real:
+    matrix:
+      model: ${models}
+      dataset: ${real-datasets}
+      model-seed: ${model_seeds}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/visualize-training.py
+      --history-file data/models/${item.dataset}/${item.model.name}/${item.model-seed}/loss_history.pkl
+      --out-path data/visualization/${item.dataset}/${item.model.name}/${item.model-seed}/
+    deps:
+      - src/visualization/utils.py
+      - experiments/scripts/visualize-training.py
+      - data/models/${item.dataset}/${item.model.name}/${item.model-seed}/loss_history.pkl
+    outs:
+      - data/visualization/${item.dataset}/${item.model.name}/${item.model-seed}/training.png
+  visualize-evaluation:
+    matrix:
+      model: ${models}
+      dataset: ${datasets}
+      simulation-budget: ${simulation-budgets}
+      model-seed: ${model_seeds}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/visualize-evaluation.py
+      --evaluation-dir data/evaluation/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/artifacts/
+      --out-path data/visualization/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/artifacts/
+      --config experiments/configs/global.yaml
+      --simulator ${item.dataset}
+      --data-path data/preprocessed/${item.dataset}/
+    deps:
+      - src/visualization/utils.py
+      - experiments/scripts/visualize-evaluation.py
+      - data/evaluation/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/artifacts/
+    outs:
+      - data/visualization/${item.dataset}/${item.model.name}/${item.simulation-budget}/${item.model-seed}/artifacts/
+  visualize-grid:
+    matrix:
+      group: ${visualization.groups}
+      simulation-budget: ${simulation-budgets}
+      model-seed: ${model_seeds}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/visualize-grid.py
+      --config experiments/configs/global.yaml
+      --data-path data/preprocessed/
+      --eval-data-path data/evaluation/
+      --out-path data/summary/${item.group.name}/${item.simulation-budget}/${item.model-seed}/
+      --group ${item.group.name}
+      --simulation-budget ${item.simulation-budget}
+      --model-seed ${item.model-seed}
+    deps:
+      - experiments/scripts/visualize-grid.py
+      - data/evaluation/
+    params:
+      - experiments/configs/global.yaml:
+        - visualization.groups
+    outs:
+      - data/summary/${item.group.name}/${item.simulation-budget}/${item.model-seed}/hist.png
+      - data/summary/${item.group.name}/${item.simulation-budget}/${item.model-seed}/critic.png
+  collect-metrics:
+    matrix:
+      group: ${visualization.groups}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/collect-metrics.py
+      --config experiments/configs/global.yaml
+      --eval-data-path data/evaluation/
+      --out-path data/summary/${item.group.name}/
+      --group ${item.group.name}
+    deps:
+      - experiments/scripts/collect-metrics.py
+      - data/evaluation/
+    params:
+      - experiments/configs/global.yaml:
+        - visualization.groups
+    outs:
+      - data/summary/${item.group.name}/metrics.csv
+  collect-metrics-real:
+    matrix:
+      group: ${visualization.groups}
+    cmd: >-
+      PYTHONPATH="." python -Werror -W default::FutureWarning
+      -W ignore::DeprecationWarning -W ignore::ResourceWarning
+      -W default::UserWarning
+      experiments/scripts/collect-metrics-real.py
+      --config experiments/configs/global.yaml
+      --eval-data-path data/evaluation/
+      --out-path data/summary/${item.group.name}/
+      --group ${item.group.name}
+    deps:
+      - experiments/scripts/collect-metrics-real.py
+      - data/evaluation/
+    params:
+      - experiments/configs/global.yaml:
+        - visualization.groups
+    outs:
+      - data/summary/${item.group.name}/metrics-real.csv

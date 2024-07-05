@@ -1,0 +1,40 @@
+detect_anomaly: false
+wandb_log_freq: 50
+
+model:
+  flow_cfg:
+    build: NSF
+    parameters:
+      bins: 8
+      transforms: 3
+      hidden_features: [256, 256, 256,]
+      activation:
+        type: SELU
+        parameters:
+          inplace: True
+
+loss: null
+
+optimizer:
+  type: AdamW
+  lr: 0.0001
+  weight_decay: 0
+  betas:
+    - 0.5
+    - 0.9
+  gradient_norm_clip:
+    value: 1
+    type: 1
+  gradient_value_clip:
+    value: null
+  lr_scheduler:
+    name: 'ReduceLROnPlateau'
+    params:
+      patience: 50
+      factor: 0.33
+      min_lr: 1.e-7
+
+train:
+  batch_size: 512
+  iterations: 128000
+  vis_freq: 10
